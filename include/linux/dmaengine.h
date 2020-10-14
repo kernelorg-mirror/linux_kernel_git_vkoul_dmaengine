@@ -923,6 +923,10 @@ struct dma_device {
 	struct dma_async_tx_descriptor *(*device_prep_dma_interrupt)(
 		struct dma_chan *chan, unsigned long flags);
 
+	struct dma_async_tx_descriptor *(*device_prep_peripheral_sg)(
+		struct dma_chan *chan, struct scatterlist *sgl,
+		unsigned int sg_len, enum dma_transfer_direction direction,
+		unsigned long flags, void *context);
 	struct dma_async_tx_descriptor *(*device_prep_slave_sg)(
 		struct dma_chan *chan, struct scatterlist *sgl,
 		unsigned int sg_len, enum dma_transfer_direction direction,
@@ -959,21 +963,24 @@ struct dma_device {
 #endif
 };
 
-static inline int dmaengine_slave_config(struct dma_chan *chan,
-					  struct dma_slave_config *config)
+static inline int dmaengine_peripheral_config(struct dma_chan *chan,
+					  struct dma_peripheral_config *config)
 {
 	if (chan->device->device_config)
 		return chan->device->device_config(chan, config);
 
 	return -ENOSYS;
 }
+#define dmaengine_slave_config dmaengine_peripheral_config
 
-static inline bool is_slave_direction(enum dma_transfer_direction direction)
+static inline bool is_peripheral_direction(enum dma_transfer_direction direction)
 {
 	return (direction == DMA_MEM_TO_DEV) || (direction == DMA_DEV_TO_MEM);
 }
 
-static inline struct dma_async_tx_descriptor *dmaengine_prep_slave_single(
+#define is_slave_direction is_peripheral_direction
+
+static inline struct dma_async_tx_descriptor *dmaengine_prep_peripheral_single(
 	struct dma_chan *chan, dma_addr_t buf, size_t len,
 	enum dma_transfer_direction dir, unsigned long flags)
 {
@@ -982,23 +989,37 @@ static inline struct dma_async_tx_descriptor *dmaengine_prep_slave_single(
 	sg_dma_address(&sg) = buf;
 	sg_dma_len(&sg) = len;
 
-	if (!chan || !chan->device || !chan->device->device_prep_slave_sg)
+	if (!chan || !chan->device)
 		return NULL;
 
-	return chan->device->device_prep_slave_sg(chan, &sg, 1,
-						  dir, flags, NULL);
-}
+	if (chan->device->device_prep_peripheral_sg)
+		return chan->device->device_prep_peripheral_sg(chan, &sg, 1,
+							       dir, flags, NULL);
 
-static inline struct dma_async_tx_descriptor *dmaengine_prep_slave_sg(
+	if (chan->device->device_prep_slave_sg)
+		return chan->device->device_prep_slave_sg(chan, &sg, 1,
+							  dir, flags, NULL);
+	return NULL;
+}
+#define dmaengine_prep_slave_single dmaengine_prep_peripheral_single
+
+static inline struct dma_async_tx_descriptor *dmaengine_prep_peripheral_sg(
 	struct dma_chan *chan, struct scatterlist *sgl,	unsigned int sg_len,
 	enum dma_transfer_direction dir, unsigned long flags)
 {
-	if (!chan || !chan->device || !chan->device->device_prep_slave_sg)
+	if (!chan || !chan->device)
 		return NULL;
 
-	return chan->device->device_prep_slave_sg(chan, sgl, sg_len,
-						  dir, flags, NULL);
+	if (chan->device->device_prep_peripheral_sg)
+		return chan->device->device_prep_peripheral_sg(chan, sgl, sg_len,
+							       dir, flags, NULL);
+
+	if (chan->device->device_prep_slave_sg)
+		return chan->device->device_prep_slave_sg(chan, sgl, sg_len,
+							  dir, flags, NULL);
+	return NULL;
 }
+#define dmaengine_prep_slave_sg dmaengine_prep_peripheral_sg
 
 #ifdef CONFIG_RAPIDIO_DMA_ENGINE
 struct rio_dma_ext;
@@ -1007,11 +1028,17 @@ static inline struct dma_async_tx_descriptor *dmaengine_prep_rio_sg(
 	enum dma_transfer_direction dir, unsigned long flags,
 	struct rio_dma_ext *rio_ext)
 {
-	if (!chan || !chan->device || !chan->device->device_prep_slave_sg)
+	if (!chan || !chan->device)
 		return NULL;
 
-	return chan->device->device_prep_slave_sg(chan, sgl, sg_len,
-						  dir, flags, rio_ext);
+	if (chan->device->device_prep_peripheral_sg)
+		return chan->device->device_prep_peripheral_sg(chan, sgl, sg_len,
+							       dir, flags, rio_ext);
+
+	if (chan->device->device_prep_slave_sg)
+		return chan->device->device_prep_slave_sg(chan, sgl, sg_len,
+							  dir, flags, rio_ext);
+	return NULL;
 }
 #endif
 
@@ -1498,7 +1525,7 @@ struct dma_chan *dma_request_chan(struct device *dev, const char *name);
 struct dma_chan *dma_request_chan_by_mask(const dma_cap_mask_t *mask);
 
 void dma_release_channel(struct dma_chan *chan);
-int dma_get_slave_caps(struct dma_chan *chan, struct dma_slave_caps *caps);
+int dma_get_peripheral_caps(struct dma_chan *chan, struct dma_peripheral_caps *caps);
 #else
 static inline struct dma_chan *dma_find_channel(enum dma_transaction_type tx_type)
 {
@@ -1535,19 +1562,20 @@ static inline struct dma_chan *dma_request_chan_by_mask(
 static inline void dma_release_channel(struct dma_chan *chan)
 {
 }
-static inline int dma_get_slave_caps(struct dma_chan *chan,
-				     struct dma_slave_caps *caps)
+static inline int dma_get_peripheral_caps(struct dma_chan *chan,
+				     struct dma_peripheral_caps *caps)
 {
 	return -ENXIO;
 }
 #endif
+#define dma_get_slave_caps dma_get_peripheral_caps
 
 static inline int dmaengine_desc_set_reuse(struct dma_async_tx_descriptor *tx)
 {
-	struct dma_slave_caps caps;
+	struct dma_peripheral_caps caps;
 	int ret;
 
-	ret = dma_get_slave_caps(tx->chan, &caps);
+	ret = dma_get_peripheral_caps(tx->chan, &caps);
 	if (ret)
 		return ret;
 
@@ -1592,17 +1620,19 @@ void dma_run_dependencies(struct dma_async_tx_descriptor *tx);
 
 /* Deprecated, please use dma_request_chan() directly */
 static inline struct dma_chan * __deprecated
-dma_request_slave_channel(struct device *dev, const char *name)
+dma_request_peripheral_channel(struct device *dev, const char *name)
 {
 	struct dma_chan *ch = dma_request_chan(dev, name);
 
 	return IS_ERR(ch) ? NULL : ch;
 }
 
+#define dma_request_slave_channel dma_request_peripheral_channel
+
 static inline struct dma_chan
-*dma_request_slave_channel_compat(const dma_cap_mask_t mask,
-				  dma_filter_fn fn, void *fn_param,
-				  struct device *dev, const char *name)
+*dma_request_peripheral_channel_compat(const dma_cap_mask_t mask,
+				       dma_filter_fn fn, void *fn_param,
+				       struct device *dev, const char *name)
 {
 	struct dma_chan *chan;
 
@@ -1615,6 +1645,8 @@ static inline struct dma_chan
 
 	return __dma_request_channel(&mask, fn, fn_param, NULL);
 }
+
+#define dma_request_slave_channel_compat dma_request_peripheral_channel_compat
 
 static inline char *
 dmaengine_get_direction_text(enum dma_transfer_direction dir)
