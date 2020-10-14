@@ -793,10 +793,10 @@ static const struct dma_slave_map *dma_filter_match(struct dma_device *device,
 		return NULL;
 
 	for (i = 0; i < device->filter.mapcnt; i++) {
-		const struct dma_slave_map *map = &device->filter.map[i];
+		const struct dma_peripheral_map *map = &device->filter.map[i];
 
 		if (!strcmp(map->devname, dev_name(dev)) &&
-		    !strcmp(map->slave, name))
+		    !strcmp(map->chan_name, name))
 			return map;
 	}
 
@@ -861,7 +861,7 @@ found:
 	chan->name = kasprintf(GFP_KERNEL, "dma:%s", name);
 	if (!chan->name)
 		return chan;
-	chan->slave = dev;
+	chan->peripheral = dev;
 
 	if (sysfs_create_link(&chan->dev->device.kobj, &dev->kobj,
 			      DMA_SLAVE_NAME))
@@ -910,12 +910,12 @@ void dma_release_channel(struct dma_chan *chan)
 	if (--chan->device->privatecnt == 0)
 		dma_cap_clear(DMA_PRIVATE, chan->device->cap_mask);
 
-	if (chan->slave) {
+	if (chan->peripheral) {
 		sysfs_remove_link(&chan->dev->device.kobj, DMA_SLAVE_NAME);
-		sysfs_remove_link(&chan->slave->kobj, chan->name);
+		sysfs_remove_link(&chan->peripheral->kobj, chan->name);
 		kfree(chan->name);
 		chan->name = NULL;
-		chan->slave = NULL;
+		chan->peripheral = NULL;
 	}
 
 #ifdef CONFIG_DEBUG_FS

@@ -312,13 +312,13 @@ struct dma_router {
 /**
  * struct dma_chan - devices supply DMA channels, clients use them
  * @device: ptr to the dma device who supplies this channel, always !%NULL
- * @slave: ptr to the device using this channel
+ * @peripheral: ptr to the device using this channel
  * @cookie: last cookie value returned to client
  * @completed_cookie: last completed cookie for this channel
  * @chan_id: channel ID for sysfs
  * @dev: class device for sysfs
  * @name: backlink name for sysfs
- * @dbg_client_name: slave name for debugfs in format:
+ * @dbg_client_name: peripheral name for debugfs in format:
  *	dev_name(requester's dev):channel name, for example: "2b00000.mcasp:tx"
  * @device_node: used to add this to the device chan list
  * @local: per-cpu pointer to a struct dma_chan_percpu
@@ -330,7 +330,7 @@ struct dma_router {
  */
 struct dma_chan {
 	struct dma_device *device;
-	struct device *slave;
+	struct device *peripheral;
 	dma_cookie_t cookie;
 	dma_cookie_t completed_cookie;
 
@@ -395,16 +395,16 @@ enum dma_peripheral_buswidth {
 #define	DMA_SLAVE_BUSWIDTH_64_BYTES	DMA_PERIPHERAL_BUSWIDTH_64_BYTES
 
 /**
- * struct dma_slave_config - dma slave channel runtime config
- * @direction: whether the data shall go in or out on this slave
+ * struct dma_peripheral_config - dma peripheral channel runtime config
+ * @direction: whether the data shall go in or out on this peripheral
  * channel, right now. DMA_MEM_TO_DEV and DMA_DEV_TO_MEM are
  * legal values. DEPRECATED, drivers should use the direction argument
- * to the device_prep_slave_sg and device_prep_dma_cyclic functions or
+ * to the device_prep_peripheral_sg and device_prep_dma_cyclic functions or
  * the dir field in the dma_interleaved_template structure.
- * @src_addr: this is the physical address where DMA slave data
+ * @src_addr: this is the physical address where DMA peripheral data
  * should be read (RX), if the source is memory this argument is
  * ignored.
- * @dst_addr: this is the physical address where DMA slave data
+ * @dst_addr: this is the physical address where DMA peripheral data
  * should be written (TX), if the source is memory this argument
  * is ignored.
  * @src_addr_width: this is the width in bytes of the source (RX)
@@ -426,12 +426,12 @@ enum dma_peripheral_buswidth {
  * loops in this area in order to transfer the data.
  * @dst_port_window_size: same as src_port_window_size but for the destination
  * port.
- * @device_fc: Flow Controller Settings. Only valid for slave channels. Fill
+ * @device_fc: Flow Controller Settings. Only valid for peripheral channels. Fill
  * with 'true' if peripheral should be flow controller. Direction will be
  * selected at Runtime.
- * @slave_id: Slave requester id. Only valid for slave channels. The dma
- * slave peripheral will have unique id as dma requester which need to be
- * pass as slave config.
+ * @peripheral_id: Peripheral requester id. Only valid for peripheral channels. The dma
+ * peripheral will have unique id as dma requester which need to be
+ * pass as peripheral config.
  *
  * This struct is passed in as configuration data to a DMA engine
  * in order to set up a certain channel for DMA transport at runtime.
@@ -440,24 +440,27 @@ enum dma_peripheral_buswidth {
  * will then be passed in as an argument to the function.
  *
  * The rationale for adding configuration information to this struct is as
- * follows: if it is likely that more than one DMA slave controllers in
+ * follows: if it is likely that more than one DMA peripheral controllers in
  * the world will support the configuration option, then make it generic.
  * If not: if it is fixed so that it be sent in static from the platform
  * data, then prefer to do that.
  */
-struct dma_slave_config {
+struct dma_peripheral_config {
 	enum dma_transfer_direction direction;
 	phys_addr_t src_addr;
 	phys_addr_t dst_addr;
-	enum dma_slave_buswidth src_addr_width;
-	enum dma_slave_buswidth dst_addr_width;
+	enum dma_peripheral_buswidth src_addr_width;
+	enum dma_peripheral_buswidth dst_addr_width;
 	u32 src_maxburst;
 	u32 dst_maxburst;
 	u32 src_port_window_size;
 	u32 dst_port_window_size;
 	bool device_fc;
 	unsigned int slave_id;
+	unsigned int peripheral_id;
 };
+
+#define dma_slave_config dma_peripheral_config
 
 /**
  * enum dma_residue_granularity - Granularity of the reported transfer residue
@@ -486,12 +489,12 @@ enum dma_residue_granularity {
 };
 
 /**
- * struct dma_slave_caps - expose capabilities of a slave channel only
+ * struct dma_peripheral_caps - expose capabilities of a peripheral channel only
  * @src_addr_widths: bit mask of src addr widths the channel supports.
  *	Width is specified in bytes, e.g. for a channel supporting
  *	a width of 4 the mask should have BIT(4) set.
  * @dst_addr_widths: bit mask of dst addr widths the channel supports
- * @directions: bit mask of slave directions the channel supports.
+ * @directions: bit mask of peripheral directions the channel supports.
  *	Since the enum dma_transfer_direction is not defined as bit flag for
  *	each type, the dma controller should set BIT(<TYPE>) and same
  *	should be checked by controller as well
@@ -508,7 +511,7 @@ enum dma_residue_granularity {
  * @descriptor_reuse: if a descriptor can be reused by client and
  * resubmitted multiple times
  */
-struct dma_slave_caps {
+struct dma_peripheral_caps {
 	u32 src_addr_widths;
 	u32 dst_addr_widths;
 	u32 directions;
@@ -521,6 +524,8 @@ struct dma_slave_caps {
 	enum dma_residue_granularity residue_granularity;
 	bool descriptor_reuse;
 };
+
+#define dma_slave_caps dma_peripheral_caps
 
 static inline const char *dma_chan_name(struct dma_chan *chan)
 {
@@ -754,29 +759,31 @@ enum dmaengine_alignment {
 };
 
 /**
- * struct dma_slave_map - associates slave device and it's slave channel with
+ * struct dma_peripheral_map - associates peripheral device and it's peripheral channel with
  * parameter to be used by a filter function
  * @devname: name of the device
- * @slave: slave channel name
+ * @chan_name: peripheral channel name
  * @param: opaque parameter to pass to struct dma_filter.fn
  */
-struct dma_slave_map {
+struct dma_peripheral_map {
 	const char *devname;
-	const char *slave;
+	const char *chan_name;
 	void *param;
 };
 
+#define dma_slave_map dma_peripheral_map
+
 /**
- * struct dma_filter - information for slave device/channel to filter_fn/param
+ * struct dma_filter - information for peripheral device/channel to filter_fn/param
  * mapping
  * @fn: filter function callback
- * @mapcnt: number of slave device/channel in the map
+ * @mapcnt: number of peripheral device/channel in the map
  * @map: array of channel to filter mapping data
  */
 struct dma_filter {
 	dma_filter_fn fn;
 	int mapcnt;
-	const struct dma_slave_map *map;
+	const struct dma_peripheral_map *map;
 };
 
 /**
@@ -785,7 +792,7 @@ struct dma_filter {
  * @privatecnt: how many DMA channels are requested by dma_request_channel
  * @channels: the list of struct dma_chan
  * @global_node: list_head for global dma_device_list
- * @filter: information for device/slave to filter function/param mapping
+ * @filter: information for device/peripheral to filter function/param mapping
  * @cap_mask: one or more dma_capability flags
  * @desc_metadata_modes: supported metadata modes by the DMA device
  * @max_xor: maximum number of xor sources, 0 if no capability
@@ -801,7 +808,7 @@ struct dma_filter {
  *	Width is specified in bytes, e.g. for a device supporting
  *	a width of 4 the mask should have BIT(4) set.
  * @dst_addr_widths: bit mask of dst addr widths the device supports
- * @directions: bit mask of slave directions the device supports.
+ * @directions: bit mask of peripheral directions the device supports.
  *	Since the enum dma_transfer_direction is not defined as bit flag for
  *	each type, the dma controller should set BIT(<TYPE>) and same
  *	should be checked by controller as well
@@ -823,13 +830,13 @@ struct dma_filter {
  * @device_prep_dma_memset: prepares a memset operation
  * @device_prep_dma_memset_sg: prepares a memset operation over a scatter list
  * @device_prep_dma_interrupt: prepares an end of chain interrupt operation
- * @device_prep_slave_sg: prepares a slave dma operation
+ * @device_prep_peripheral_sg: prepares a peripheral dma operation
  * @device_prep_dma_cyclic: prepare a cyclic dma operation suitable for audio.
  *	The function takes a buffer of size buf_len. The callback function will
  *	be called after period_len bytes have been transferred.
  * @device_prep_interleaved_dma: Transfer expression in a generic way.
  * @device_prep_dma_imm_data: DMA's 8 byte immediate data to the dst address
- * @device_caps: May be used to override the generic DMA slave capabilities
+ * @device_caps: May be used to override the generic DMA peripheral capabilities
  *	with per-channel specific ones
  * @device_config: Pushes a new configuration to a channel, return 0 or an error
  *	code
@@ -932,9 +939,9 @@ struct dma_device {
 		unsigned long flags);
 
 	void (*device_caps)(struct dma_chan *chan,
-			    struct dma_slave_caps *caps);
+			    struct dma_peripheral_caps *caps);
 	int (*device_config)(struct dma_chan *chan,
-			     struct dma_slave_config *config);
+			     struct dma_peripheral_config *config);
 	int (*device_pause)(struct dma_chan *chan);
 	int (*device_resume)(struct dma_chan *chan);
 	int (*device_terminate_all)(struct dma_chan *chan);
