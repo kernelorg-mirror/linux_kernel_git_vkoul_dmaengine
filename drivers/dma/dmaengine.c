@@ -143,7 +143,7 @@ static inline void dmaengine_debug_unregister(struct dma_device *dma_dev) { }
 
 /* --- sysfs implementation --- */
 
-#define DMA_SLAVE_NAME	"slave"
+#define DMA_PERIPHERAL_NAME	"peripheral"
 
 /**
  * dev_to_dma_chan - convert a device pointer to its sysfs container object
@@ -266,13 +266,13 @@ static int __init dma_channel_table_init(void)
 
 	bitmap_fill(dma_cap_mask_all.bits, DMA_TX_TYPE_END);
 
-	/* 'interrupt', 'private', and 'slave' are channel capabilities,
+	/* 'interrupt', 'private', and 'peripheral' are channel capabilities,
 	 * but are not associated with an operation so they do not need
 	 * an entry in the channel_table
 	 */
 	clear_bit(DMA_INTERRUPT, dma_cap_mask_all.bits);
 	clear_bit(DMA_PRIVATE, dma_cap_mask_all.bits);
-	clear_bit(DMA_SLAVE, dma_cap_mask_all.bits);
+	clear_bit(DMA_PERIPHERAL, dma_cap_mask_all.bits);
 
 	for_each_dma_cap_mask(cap, dma_cap_mask_all) {
 		channel_table[cap] = alloc_percpu(struct dma_chan_tbl_ent);
@@ -576,15 +576,15 @@ int dma_get_slave_caps(struct dma_chan *chan, struct dma_slave_caps *caps)
 
 	device = chan->device;
 
-	/* check if the channel supports slave transactions */
-	if (!(test_bit(DMA_SLAVE, device->cap_mask.bits) ||
+	/* check if the channel supports peripheral transactions */
+	if (!(test_bit(DMA_PERIPHERAL, device->cap_mask.bits) ||
 	      test_bit(DMA_CYCLIC, device->cap_mask.bits)))
 		return -ENXIO;
 
 	/*
-	 * Check whether it reports it uses the generic slave
+	 * Check whether it reports it uses the generic peripheral
 	 * capabilities, if not, that means it doesn't support any
-	 * kind of slave capabilities reporting.
+	 * kind of peripheral capabilities reporting.
 	 */
 	if (!device->directions)
 		return -ENXIO;
@@ -603,7 +603,7 @@ int dma_get_slave_caps(struct dma_chan *chan, struct dma_slave_caps *caps)
 
 	/*
 	 * DMA engine device might be configured with non-uniformly
-	 * distributed slave capabilities per device channels. In this
+	 * distributed capabilities per device channels. In this
 	 * case the corresponding driver may provide the device_caps
 	 * callback to override the generic capabilities with
 	 * channel-specific ones.
@@ -783,9 +783,9 @@ struct dma_chan *__dma_request_channel(const dma_cap_mask_t *mask,
 }
 EXPORT_SYMBOL_GPL(__dma_request_channel);
 
-static const struct dma_slave_map *dma_filter_match(struct dma_device *device,
-						    const char *name,
-						    struct device *dev)
+static const struct dma_peripheral_map *dma_filter_match(struct dma_device *device,
+						         const char *name,
+						         struct device *dev)
 {
 	int i;
 
@@ -804,9 +804,9 @@ static const struct dma_slave_map *dma_filter_match(struct dma_device *device,
 }
 
 /**
- * dma_request_chan - try to allocate an exclusive slave channel
+ * dma_request_chan - try to allocate an exclusive peripheral channel
  * @dev:	pointer to client device structure
- * @name:	slave channel name
+ * @name:	peripheral channel name
  *
  * Returns pointer to appropriate DMA channel on success or an error pointer.
  */
@@ -833,13 +833,13 @@ struct dma_chan *dma_request_chan(struct device *dev, const char *name)
 	mutex_lock(&dma_list_mutex);
 	list_for_each_entry_safe(d, _d, &dma_device_list, global_node) {
 		dma_cap_mask_t mask;
-		const struct dma_slave_map *map = dma_filter_match(d, name, dev);
+		const struct dma_peripheral_map *map = dma_filter_match(d, name, dev);
 
 		if (!map)
 			continue;
 
 		dma_cap_zero(mask);
-		dma_cap_set(DMA_SLAVE, mask);
+		dma_cap_set(DMA_PERIPHERAL, mask);
 
 		chan = find_candidate(d, &mask, d->filter.fn, map->param);
 		if (!IS_ERR(chan))
@@ -864,8 +864,8 @@ found:
 	chan->peripheral = dev;
 
 	if (sysfs_create_link(&chan->dev->device.kobj, &dev->kobj,
-			      DMA_SLAVE_NAME))
-		dev_warn(dev, "Cannot create DMA %s symlink\n", DMA_SLAVE_NAME);
+			      DMA_PERIPHERAL_NAME))
+		dev_warn(dev, "Cannot create DMA %s symlink\n", DMA_PERIPHERAL_NAME);
 	if (sysfs_create_link(&dev->kobj, &chan->dev->device.kobj, chan->name))
 		dev_warn(dev, "Cannot create DMA %s symlink\n", chan->name);
 
@@ -911,7 +911,7 @@ void dma_release_channel(struct dma_chan *chan)
 		dma_cap_clear(DMA_PRIVATE, chan->device->cap_mask);
 
 	if (chan->peripheral) {
-		sysfs_remove_link(&chan->dev->device.kobj, DMA_SLAVE_NAME);
+		sysfs_remove_link(&chan->dev->device.kobj, DMA_PERIPHERAL_NAME);
 		sysfs_remove_link(&chan->peripheral->kobj, chan->name);
 		kfree(chan->name);
 		chan->name = NULL;
