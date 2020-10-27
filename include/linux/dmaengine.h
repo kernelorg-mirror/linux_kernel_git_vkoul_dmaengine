@@ -59,7 +59,7 @@ enum dma_transaction_type {
 	DMA_INTERRUPT,
 	DMA_PRIVATE,
 	DMA_ASYNC_TX,
-	DMA_SLAVE,
+	DMA_PERIPHERAL,
 	DMA_CYCLIC,
 	DMA_INTERLEAVE,
 	DMA_COMPLETION_NO_ORDER,
@@ -69,12 +69,14 @@ enum dma_transaction_type {
 	DMA_TX_TYPE_END,
 };
 
+#define DMA_SLAVE DMA_PERIPHERAL
+
 /**
  * enum dma_transfer_direction - dma transfer mode and direction indicator
  * @DMA_MEM_TO_MEM: Async/Memcpy mode
- * @DMA_MEM_TO_DEV: Slave mode & From Memory to Device
- * @DMA_DEV_TO_MEM: Slave mode & From Device to Memory
- * @DMA_DEV_TO_DEV: Slave mode & From Device to Device
+ * @DMA_MEM_TO_DEV: Peripheral mode & From Memory to Device
+ * @DMA_DEV_TO_MEM: Peripheral mode & From Device to Memory
+ * @DMA_DEV_TO_DEV: Peripheral mode & From Device to Device
  */
 enum dma_transfer_direction {
 	DMA_MEM_TO_MEM,
@@ -365,20 +367,32 @@ struct dma_chan_dev {
 };
 
 /**
- * enum dma_slave_buswidth - defines bus width of the DMA slave
+ * enum dma_peripheral_buswidth - defines bus width of the DMA peripheral
  * device, source or target buses
  */
-enum dma_slave_buswidth {
-	DMA_SLAVE_BUSWIDTH_UNDEFINED = 0,
-	DMA_SLAVE_BUSWIDTH_1_BYTE = 1,
-	DMA_SLAVE_BUSWIDTH_2_BYTES = 2,
-	DMA_SLAVE_BUSWIDTH_3_BYTES = 3,
-	DMA_SLAVE_BUSWIDTH_4_BYTES = 4,
-	DMA_SLAVE_BUSWIDTH_8_BYTES = 8,
-	DMA_SLAVE_BUSWIDTH_16_BYTES = 16,
-	DMA_SLAVE_BUSWIDTH_32_BYTES = 32,
-	DMA_SLAVE_BUSWIDTH_64_BYTES = 64,
+enum dma_peripheral_buswidth {
+	DMA_PERIPHERAL_BUSWIDTH_UNDEFINED = 0,
+	DMA_PERIPHERAL_BUSWIDTH_1_BYTE = 1,
+	DMA_PERIPHERAL_BUSWIDTH_2_BYTES = 2,
+	DMA_PERIPHERAL_BUSWIDTH_3_BYTES = 3,
+	DMA_PERIPHERAL_BUSWIDTH_4_BYTES = 4,
+	DMA_PERIPHERAL_BUSWIDTH_8_BYTES = 8,
+	DMA_PERIPHERAL_BUSWIDTH_16_BYTES = 16,
+	DMA_PERIPHERAL_BUSWIDTH_32_BYTES = 32,
+	DMA_PERIPHERAL_BUSWIDTH_64_BYTES = 64,
 };
+
+#define dma_slave_buswidth dma_peripheral_buswidth
+
+#define	DMA_SLAVE_BUSWIDTH_UNDEFINED	DMA_PERIPHERAL_BUSWIDTH_UNDEFINED
+#define	DMA_SLAVE_BUSWIDTH_1_BYTE	DMA_PERIPHERAL_BUSWIDTH_1_BYTE
+#define	DMA_SLAVE_BUSWIDTH_2_BYTES	DMA_PERIPHERAL_BUSWIDTH_2_BYTES
+#define	DMA_SLAVE_BUSWIDTH_3_BYTES	DMA_PERIPHERAL_BUSWIDTH_3_BYTES
+#define	DMA_SLAVE_BUSWIDTH_4_BYTES	DMA_PERIPHERAL_BUSWIDTH_4_BYTES
+#define	DMA_SLAVE_BUSWIDTH_8_BYTES	DMA_PERIPHERAL_BUSWIDTH_8_BYTES
+#define	DMA_SLAVE_BUSWIDTH_16_BYTES	DMA_PERIPHERAL_BUSWIDTH_16_BYTES
+#define	DMA_SLAVE_BUSWIDTH_32_BYTES	DMA_PERIPHERAL_BUSWIDTH_32_BYTES
+#define	DMA_SLAVE_BUSWIDTH_64_BYTES	DMA_PERIPHERAL_BUSWIDTH_64_BYTES
 
 /**
  * struct dma_slave_config - dma slave channel runtime config
